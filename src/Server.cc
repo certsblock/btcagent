@@ -932,7 +932,7 @@ void StratumSession::handleRequest_Authorize(const string &idStr,
       responseError(idStr, StratumError::INTERNAL_ERROR);
     }
   }
-
+  upSessionIdx_ = server_->findUpSessionIdx(workerName_);
   UpStratumClient *up = (*upSessions)[upSessionIdx_];
   // wait until the UpStratumClient authorized the worker success
 
@@ -1092,10 +1092,7 @@ bool StratumServer::setupUpStratumSessions(const string &workerName) {
   WSAStartup(0x0201, &wsa_data);
 #endif
 
-  if(!base_) {
-    LOG(ERROR) << "server: cannot create event base";
-    return false;
-  }
+
 
   // create up sessions
   for (int8_t i = 0; i < kUpSessionCount_; i++) {
@@ -1140,6 +1137,10 @@ bool StratumServer::setupUpStratumSessions(const string &workerName) {
 bool StratumServer::setup() {
 
   base_ = event_base_new();
+  if(!base_) {
+    LOG(ERROR) << "server: cannot create event base";
+    return false;
+  }
 
   // set up ev listener
   struct sockaddr_in sin;
@@ -1151,6 +1152,7 @@ bool StratumServer::setup() {
     LOG(ERROR) << "invalid ip: " << listenIP_;
     return false;
   }
+  DLOG(INFO) << "load the listen address success";
 
   listener_ = evconnlistener_new_bind(base_,
                                       StratumServer::listenerCallback,
