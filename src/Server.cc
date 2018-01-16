@@ -1002,7 +1002,7 @@ StratumServer::~StratumServer() {
   for ( auto it = userUpsessions_.begin(); it != userUpsessions_.end(); ++it){
     for (size_t i = 0; i < it->second.size(); i++) {
       UpStratumClient *upSession = it->second[i];  // alias
-      if (upSessions == NULL)
+      if (upSession == NULL)
         continue;
 
       // remove this upSessions and down sessions which belong to this
@@ -1092,7 +1092,6 @@ bool StratumServer::setupUpStratumSessions(const string &workerName) {
   WSAStartup(0x0201, &wsa_data);
 #endif
 
-  base_ = event_base_new();
   if(!base_) {
     LOG(ERROR) << "server: cannot create event base";
     return false;
@@ -1140,6 +1139,7 @@ bool StratumServer::setupUpStratumSessions(const string &workerName) {
 
 bool StratumServer::setup() {
 
+  base_ = event_base_new();
 
   // set up ev listener
   struct sockaddr_in sin;
