@@ -32,6 +32,7 @@
 #include <map>
 #include <set>
 #include <unordered_map>
+#include <deque>
 
 #define CMD_MAGIC_NUMBER      0x7Fu
 // types
@@ -205,7 +206,6 @@ class StratumServer {
 
   vector<string>   upPoolHost_;
   vector<uint16_t> upPoolPort_;
-
   vector<string>   upPoolUserName_;
 
   // up stream connnections
@@ -225,11 +225,11 @@ class StratumServer {
   struct evconnlistener *listener_;
 
   void checkUpSessions();
-  void checkUserUpSessions(const string &workName);
   void waitUtilAllUpSessionsAvailable();
 
 public:
   SessionIDManager sessionIDManager_;
+  SessionIDManager upSessionIDManager_;
 
 
 public:
@@ -237,7 +237,7 @@ public:
   ~StratumServer();
 
   UpStratumClient *createUpSession(const int8_t idx, const string &workName);
-  void  createUserUpSessions(const string &workName);
+
   vector<UpStratumClient *> *getUserUpsessions(const string &workerName);
 
 //  void addUpPool(const string &host, const uint16_t port,
@@ -264,7 +264,7 @@ public:
   static void upWatcherCallback(evutil_socket_t fd, short events, void *ptr);
   static void upSesssionCheckCallback(evutil_socket_t fd, short events, void *ptr);
 
-  void sendMiningNotifyToAll(const int8_t idx, const string &notify);
+  void sendMiningNotifyToAll(const int8_t idx, const string &userName, const string &notify);
   void sendMiningNotify(StratumSession *downSession);
   void sendDefaultMiningDifficulty(StratumSession *downSession);
   void sendMiningDifficulty(UpStratumClient *upconn,
@@ -320,7 +320,7 @@ public:
   // last stratum job received from pool
   uint32_t lastJobReceivedTime_;
 
-
+  vector<StratumSession *> upDownSessions_;
   string userName_;
 
 public:
@@ -330,9 +330,7 @@ public:
   ~UpStratumClient();
 
   bool connect(struct sockaddr_in &sin);
-  string *getUserName() {
-    return &userName_;
-  }
+
   void recvData(struct evbuffer *buf);
   void sendData(const char *data, size_t len);
   inline void sendData(const string &str) {
@@ -360,8 +358,6 @@ class StratumSession {
   //----------------------
   struct evbuffer *inBuf_;
   static const int32_t kExtraNonce2Size_ = 4;
-  StratumSessionState state_;
-  char *minerAgent_;
 
   void setReadTimeout(const int32_t timeout);
 
@@ -381,6 +377,9 @@ public:
   struct bufferevent *bev_;
   StratumServer *server_;
   string workerName_;
+  string userName_;
+  StratumSessionState state_;
+  char *minerAgent_;
 
 
 public:
