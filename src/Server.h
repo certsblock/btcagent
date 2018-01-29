@@ -236,9 +236,9 @@ public:
   StratumServer(const string &listenIP, const uint16_t listenPort);
   ~StratumServer();
 
-  UpStratumClient *createUpSession(const int8_t idx, const string &workName);
+  UpStratumClient *createUpSession(const int8_t idx, const string &userName);
 
-  vector<UpStratumClient *> *getUserUpsessions(const string &workerName);
+  vector<UpStratumClient *> *getUserUpsessions(const string &userName);
 
 //  void addUpPool(const string &host, const uint16_t port,
 //                 const string &upPoolUserName);
@@ -270,7 +270,7 @@ public:
   void sendMiningDifficulty(UpStratumClient *upconn,
                             uint16_t sessionId, uint64_t diff);
 
-  int8_t findUpSessionIdx(const string &workName);
+  int8_t findUpSessionIdx(const string &userName);
 
   void submitShare(const Share &share, StratumSession *downSession);
   void registerWorker  (StratumSession *downSession, const char *minerAgent,
@@ -278,7 +278,7 @@ public:
   void unRegisterWorker(StratumSession *downSession);
 
   bool setup();
-  bool setupUpStratumSessions(const string &workerName);
+  bool setupUpStratumSessions(const string &userName);
   void run();
   void stop();
 };
