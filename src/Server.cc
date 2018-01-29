@@ -944,6 +944,8 @@ void StratumSession::handleRequest_Authorize(const string &idStr,
     if (!server_->setupUpStratumSessions(userName_)) {
       responseError(idStr, StratumError::INTERNAL_ERROR);
     }
+
+    // choose first upSession idx as upSessionIdx
     upSessionIdx_ = server_->getUserUpsessions(userName_)->front()->idx_;
     // auth success
     responseTrue(idStr);
@@ -1248,7 +1250,7 @@ void StratumServer::listenerCallback(struct evconnlistener *listener,
     return;
   }
 
-  // const int8_t upSessionIdx = server->findUpSessionIdx();
+  // default upSessionIdx is -1
   const int8_t upSessionIdx  = -1;
   if (upSessionIdx == -2) {
     LOG(ERROR) << "no available up session";
