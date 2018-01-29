@@ -307,6 +307,7 @@ class UpStratumClient {
 public:
   UpStratumClientState state_;
   int8_t idx_;
+  int8_t uniqueIdx_;
   StratumServer *server_;
 
   uint32_t poolDefaultDiff_;
