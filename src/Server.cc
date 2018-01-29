@@ -1318,7 +1318,7 @@ void StratumServer::removeDownConnection(StratumSession *downconn) {
   // clear resources
   sessionIDManager_.freeSessionId(downconn->sessionId_);
   downSessions_[downconn->sessionId_] = NULL;
-  upSessionCount_[downconn->workerName_][downconn->upSessionIdx_]--;
+  upSessionCount_[downconn->userName_][downconn->upSessionIdx_]--;
   delete downconn;
 }
 
@@ -1464,7 +1464,7 @@ int8_t StratumServer::findUpSessionIdx(const string &userName) {
 void StratumServer::submitShare(const Share &share,
                                 StratumSession *downSession) {
   //UpStratumClient *up = upSessions_[downSession->upSessionIdx_];
-  UpStratumClient *up = userUpsessions_[downSession->workerName_][downSession->upSessionIdx_];
+  UpStratumClient *up = userUpsessions_[downSession->userName_][downSession->upSessionIdx_];
 
   bool isTimeChanged = true;
   if ((share.jobId_ == up->latestJobId_[2] && share.time_ == up->latestJobGbtTime_[2]) ||
@@ -1588,6 +1588,6 @@ void StratumServer::unRegisterWorker(StratumSession *downSession) {
   assert(p - (uint8_t *)buf.data() == (int64_t)buf.size());
 
   //UpStratumClient *up = upSessions_[downSession->upSessionIdx_];
-  UpStratumClient *up = userUpsessions_[downSession->workerName_][downSession->upSessionIdx_];
+  UpStratumClient *up = userUpsessions_[downSession->userName_][downSession->upSessionIdx_];
   up->sendData(buf);
 }
