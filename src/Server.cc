@@ -1112,7 +1112,7 @@ bool StratumServer::setupUpStratumSessions(const string &userName) {
     if (up == NULL)
       return false;
 
-    assert(up->idx_ == idx);
+    assert(up->uniqueIdx_ == idx);
     DLOG(INFO) << "add to the userUpSessions_";
     addUpConnection(up);
   }
