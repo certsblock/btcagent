@@ -517,7 +517,7 @@ bool StratumMessage::getExtraNonce1AndExtraNonce2Size(uint32_t *nonce1,
 ///////////////////////////////// UpStratumClient //////////////////////////////
 UpStratumClient::UpStratumClient(const int8_t idx, struct event_base *base,
                                  const string &userName, StratumServer *server)
-: state_(UP_INIT), idx_(idx), server_(server), poolDefaultDiff_(0)
+: state_(UP_INIT), uniqueIdx_(idx), server_(server), poolDefaultDiff_(0)
 {
   bev_ = bufferevent_socket_new(base, -1, BEV_OPT_CLOSE_ON_FREE);
   assert(bev_ != NULL);
@@ -937,7 +937,7 @@ void StratumSession::handleRequest_Authorize(const string &idStr,
   if (userName_.empty())
     userName_ = DEFAULT_WORKER_NAME;
 
-  DLOG(INFO) << "Authorize WorkName is " << userName_ << "\n";
+  DLOG(INFO) << "Authorize userName is " << userName_ << "\n";
 
 
   if (server_->getUserUpsessions(userName_) == NULL) {
@@ -1066,6 +1066,9 @@ UpStratumClient *StratumServer::createUpSession(const int8_t idx, const string &
     }
 
     UpStratumClient *up = new UpStratumClient(idx, base_, userName, this);
+
+    // add uniqueIdx to upStratumClient
+    up->idx_ = up->uniqueIdx_ % kUpSessionCount_;
     if (!up->connect(sin)) {
       delete up;
       continue;
