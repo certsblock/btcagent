@@ -1316,12 +1316,18 @@ void StratumServer::addDownConnection(StratumSession *conn) {
 
 void StratumServer::removeDownConnection(StratumSession *downconn) {
   // unregister worker
-  unRegisterWorker(downconn);
+  if (downconn->state_ == DOWN_AUTHENTICATED) {
 
-  // clear resources
-  sessionIDManager_.freeSessionId(downconn->sessionId_);
-  downSessions_[downconn->sessionId_] = NULL;
-  upSessionCount_[downconn->userName_][downconn->upSessionIdx_]--;
+
+    unRegisterWorker(downconn);
+
+    // clear resources
+    sessionIDManager_.freeSessionId(downconn->sessionId_);
+    downSessions_[downconn->sessionId_] = NULL;
+    upSessionCount_[downconn->userName_][downconn->upSessionIdx_]--;
+
+  }
+
   delete downconn;
 }
 
