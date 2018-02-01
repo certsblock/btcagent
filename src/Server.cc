@@ -578,6 +578,7 @@ bool UpStratumClient::handleMessage() {
 
   // handle ex-message
   if (buf[0] == CMD_MAGIC_NUMBER) {
+    DLOG(INFO) << "receive the cmd_magic_number";
     const uint16_t exMessageLen = *(uint16_t *)(buf + 2);
 
     if (evBufLen < exMessageLen)  // didn't received the whole message yet
@@ -624,7 +625,7 @@ void UpStratumClient::handleExMessage_MiningSetDiff(const string *exMessage) {
 
   const uint16_t count   = *(uint16_t *)(p + 5);
   uint16_t *sessionIdPtr =  (uint16_t *)(p + 7);
-
+  DLOG(INFO) << "count "<< count << " sessionIdPtr "<< *sessionIdPtr;
   for (size_t i = 0; i < count; i++) {
     uint16_t sessionId = *sessionIdPtr++;
     server_->sendMiningDifficulty(this, sessionId, diff);
@@ -668,6 +669,12 @@ void UpStratumClient::handleStratumMessage(const string &line) {
   uint32_t difficulty = 0u;
 
   if (state_ == UP_AUTHENTICATED) {
+    if (idx_ == 0 && !register_) {
+      assert(upDownSessions_.size() == 1);
+      StratumSession *downSession = upDownSessions_[0];
+      server_->registerWorker(downSession, downSession->minerAgent_, downSession->workerName_);
+      register_ = true;
+    }
     if (smsg.parseMiningNotify(sjob)) {
       //
       // mining.notify
@@ -946,7 +953,9 @@ void StratumSession::handleRequest_Authorize(const string &idStr,
     }
 
     // choose first upSession idx as upSessionIdx
-    upSessionIdx_ = server_->getUserUpsessions(userName_)->front()->idx_;
+    UpStratumClient *upSession = server_->getUserUpsessions(userName_)->front();
+    upSession->register_ = false;
+    upSessionIdx_ = upSession->idx_;
     // auth success
     responseTrue(idStr);
     state_ = DOWN_AUTHENTICATED;

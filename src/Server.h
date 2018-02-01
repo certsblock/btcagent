@@ -323,6 +323,7 @@ public:
 
   vector<StratumSession *> upDownSessions_;
   string userName_;
+  bool register_;
 
 public:
   UpStratumClient(const int8_t idx,
