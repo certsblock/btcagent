@@ -538,8 +538,7 @@ UpStratumClient::UpStratumClient(const int8_t idx, struct event_base *base,
   latestJobGbtTime_[0] = latestJobGbtTime_[1] = latestJobGbtTime_[2] = 0;
 
   lastJobReceivedTime_ = 0u;
-
-  DLOG(INFO) << "idx_: " << (int32_t)idx_;
+  DLOG(INFO) << "uniqueIdx_: " << (uint32_t)uniqueIdx_;
 }
 
 UpStratumClient::~UpStratumClient() {
@@ -669,11 +668,19 @@ void UpStratumClient::handleStratumMessage(const string &line) {
   uint32_t difficulty = 0u;
 
   if (state_ == UP_AUTHENTICATED) {
-    if (idx_ == 0 && !register_) {
-      assert(upDownSessions_.size() == 1);
-      StratumSession *downSession = upDownSessions_[0];
+    while (unRegisterSessions_.size()) {
+      StratumSession *downSession = unRegisterSessions_.back();
+      if (downSession == NULL) {
+        continue;
+      }
       server_->registerWorker(downSession, downSession->minerAgent_, downSession->workerName_);
-      register_ = true;
+
+      // send mining.set_difficulty
+      server_->sendDefaultMiningDifficulty(downSession);
+
+      // send latest stratum job
+      server_->sendMiningNotify(downSession);
+      unRegisterSessions_.pop_back();
     }
     if (smsg.parseMiningNotify(sjob)) {
       //
@@ -947,40 +954,52 @@ void StratumSession::handleRequest_Authorize(const string &idStr,
   DLOG(INFO) << "Authorize userName is " << userName_ << "\n";
 
 
-  if (server_->getUserUpsessions(userName_) == NULL) {
+  if (server_->userUpsessions_.find(userName_) == server_->userUpsessions_.end()) {
     if (!server_->setupUpStratumSessions(userName_)) {
       responseError(idStr, StratumError::INTERNAL_ERROR);
     }
 
     // choose first upSession idx as upSessionIdx
-    UpStratumClient *upSession = server_->getUserUpsessions(userName_)->front();
-    upSession->register_ = false;
+    UpStratumClient *upSession = server_->userUpsessions_[userName_].front();
     upSessionIdx_ = upSession->idx_;
+    upSession->unRegisterSessions_.push_back(this);
     // auth success
     responseTrue(idStr);
     state_ = DOWN_AUTHENTICATED;
   } else {
     upSessionIdx_ = server_->findUpSessionIdx(userName_);
-    // auth success
-    responseTrue(idStr);
-    state_ = DOWN_AUTHENTICATED;
 
-    server_->registerWorker(this, minerAgent_, workerName_);
-    // minerAgent_ will not use anymore
-    if (minerAgent_) {
-      free(minerAgent_);
-      minerAgent_ = NULL;
+    if (upSessionIdx_ == -1) {
+      // choose first upSession idx as upSessionIdx
+      UpStratumClient *upSession = server_->userUpsessions_[userName_].front();
+      upSessionIdx_ = upSession->idx_;
+      DLOG(INFO) << "upSession is " << upSessionIdx_;
+      upSession->unRegisterSessions_.push_back(this);
+      // auth success
+      responseTrue(idStr);
+      state_ = DOWN_AUTHENTICATED;
     }
-    // send mining.set_difficulty
-    server_->sendDefaultMiningDifficulty(this);
+    else {
+      server_->registerWorker(this, minerAgent_, workerName_);
+      // minerAgent_ will not use anymore
+      if (minerAgent_) {
+        free(minerAgent_);
+        minerAgent_ = NULL;
+       }
+      // auth success
+      responseTrue(idStr);
+      state_ = DOWN_AUTHENTICATED;
+      // send mining.set_difficulty
+      server_->sendDefaultMiningDifficulty(this);
 
-    // send latest stratum job
-    server_->sendMiningNotify(this);
+      // send latest stratum job
+      server_->sendMiningNotify(this);
+    }
+
+
   }
-
-  auto upSessions = server_->getUserUpsessions(userName_);
-  (*upSessions)[upSessionIdx_]->upDownSessions_.push_back(this);
   server_->addDownConnection(this);
+
 }
 void StratumSession::handleRequest_Submit(const string &idStr,
                                           const StratumMessage &smsg) {
@@ -1209,11 +1228,35 @@ void StratumServer::upWatcherCallback(evutil_socket_t fd,
 }
 
 void StratumServer::checkUpSessions() {
+  DLOG(INFO) << "start checking upSessions count, user size is "<< userUpsessions_.size() ;
+  for(auto it = upSessionCount_.begin(); it!=upSessionCount_.end();) {
+    DLOG(INFO) << "start checking if "<< it->first <<"'s all downSession ok";
+    string userName = it->first;
+    uint32_t  count  = 0;
+    for (int8_t i = 0; i<kUpSessionCount_; i++) {
+      DLOG(INFO) << "checkup " << userName << " count is " <<
+                  (uint32_t)it->second[i];
+
+      count += it->second[i];
+
+    }
+    if (count == 0) {
+      it = upSessionCount_.erase(it);
+      userUpsessions_.erase(userName);
+    }
+    else {
+      it++;
+    }
+  }
+
+  DLOG(INFO) << "start checking upSessions, user size is "<< userUpsessions_.size() ;
 
   for ( auto it = userUpsessions_.begin(); it != userUpsessions_.end(); ++it) {
-
+    string userName = it->first;
+    DLOG(INFO) << "checkup userName is " << it->first;
     for (int8_t i = 0; i < kUpSessionCount_; i++) {
-
+      DLOG(INFO) << "checkup upSessionIdx is " << (uint32_t)it->second[i]->idx_;
+                //  << " downSession count is "<< upSessionCount_[userName][i];
       UpStratumClient *upSession = (it->second)[i];  // alias
       auto idx = upSession->idx_;
 
@@ -1321,7 +1364,8 @@ void StratumServer::addDownConnection(StratumSession *conn) {
   assert(downSessions_.size() >= (size_t)(conn->sessionId_ + 1));
 
   assert(downSessions_[conn->sessionId_] == NULL);
-  upSessionCount_[conn->userName_][conn->upSessionIdx_] ++;
+  DLOG(INFO) << "add DownConnection " << conn->userName_ << " upsession idx " << conn->upSessionIdx_;
+  upSessionCount_[conn->userName_][conn->upSessionIdx_]++;
   downSessions_  [conn->sessionId_] = conn;
 }
 
@@ -1416,10 +1460,10 @@ void StratumServer::upEventCallback(struct bufferevent *bev,
 }
 
 void StratumServer::sendMiningNotifyToAll(const int8_t idx, const string &userName, const string &notify) {
-  UpStratumClient *up = userUpsessions_[userName][idx];
-  for (size_t i = 0; i < up->upDownSessions_.size(); i++) {
-    StratumSession *s = up->upDownSessions_[i];
-    if (s == NULL || s->upSessionIdx_ != idx)
+  for (size_t i = 0; i < downSessions_.size(); i++) {
+    StratumSession *s = downSessions_[i];
+    if (s == NULL || s->upSessionIdx_ != idx &&
+                     s->userName_ == userName)
       continue;
 
     s->sendData(notify);
@@ -1463,7 +1507,7 @@ int8_t StratumServer::findUpSessionIdx(const string &userName) {
   int8_t idx = -1;
   auto itr = userUpsessions_.find(userName);
   if (itr == userUpsessions_.end()) {
-    return -2;
+    return idx;
   }
   for (size_t i = 0; i < itr->second.size(); i++) {
     if (itr->second[i] == NULL || !itr->second[i]->state_ == UP_CONNECTED)

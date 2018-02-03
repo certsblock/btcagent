@@ -213,8 +213,8 @@ class StratumServer {
   // vector<int32_t> upSessionCount_;
 
   struct event *upEvTimer_;
-  std::unordered_map<string , vector<UpStratumClient *> > userUpsessions_;
-  std::unordered_map<string , vector<int32_t> > upSessionCount_;
+
+  std::unordered_map<string , vector<uint32_t > > upSessionCount_;
 
     // down stream connections
   vector<StratumSession *> downSessions_;
@@ -230,6 +230,7 @@ class StratumServer {
 public:
   SessionIDManager sessionIDManager_;
   SessionIDManager upSessionIDManager_;
+    std::unordered_map<string , vector<UpStratumClient *> > userUpsessions_;
 
 
 public:
@@ -321,7 +322,7 @@ public:
   // last stratum job received from pool
   uint32_t lastJobReceivedTime_;
 
-  vector<StratumSession *> upDownSessions_;
+  vector<StratumSession *> unRegisterSessions_;
   string userName_;
   bool register_;
 
