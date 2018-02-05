@@ -668,20 +668,6 @@ void UpStratumClient::handleStratumMessage(const string &line) {
   uint32_t difficulty = 0u;
 
   if (state_ == UP_AUTHENTICATED) {
-    while (unRegisterSessions_.size()) {
-      StratumSession *downSession = unRegisterSessions_.back();
-      if (downSession == NULL) {
-        continue;
-      }
-      server_->registerWorker(downSession, downSession->minerAgent_, downSession->workerName_);
-
-      // send mining.set_difficulty
-      server_->sendDefaultMiningDifficulty(downSession);
-
-      // send latest stratum job
-      server_->sendMiningNotify(downSession);
-      unRegisterSessions_.pop_back();
-    }
     if (smsg.parseMiningNotify(sjob)) {
       //
       // mining.notify
@@ -716,6 +702,23 @@ void UpStratumClient::handleStratumMessage(const string &line) {
         poolDefaultDiff_ = difficulty;
       }
     }
+
+    while (unRegisterSessions_.size()) {
+      StratumSession *downSession = unRegisterSessions_.back();
+      if (downSession == NULL) {
+        continue;
+      }
+      server_->registerWorker(downSession, downSession->minerAgent_, downSession->workerName_);
+      assert(downSession->userName_ == userName_);
+      assert(downSession->upSessionIdx_ == idx_);
+      // send mining.set_difficulty
+      server_->sendDefaultMiningDifficulty(downSession);
+
+      // send latest stratum job
+      server_->sendMiningNotify(downSession);
+      unRegisterSessions_.pop_back();
+    }
+
   }
 
   if (state_ == UP_CONNECTED) {
@@ -1242,7 +1245,15 @@ void StratumServer::checkUpSessions() {
     }
     if (count == 0) {
       it = upSessionCount_.erase(it);
-      userUpsessions_.erase(userName);
+      auto itUps = userUpsessions_.find(userName);
+      if (itUps == userUpsessions_.end()) {
+        DLOG(INFO) << "cannot find the user: "<< userName;
+        break;
+      }
+      for (auto i= 0; i < itUps->second.size();i++) {
+        UpStratumClient *up = itUps->second[i];
+        removeUpConnection(up);
+      }
     }
     else {
       it++;
@@ -1364,7 +1375,7 @@ void StratumServer::addDownConnection(StratumSession *conn) {
   assert(downSessions_.size() >= (size_t)(conn->sessionId_ + 1));
 
   assert(downSessions_[conn->sessionId_] == NULL);
-  DLOG(INFO) << "add DownConnection " << conn->userName_ << " upsession idx " << conn->upSessionIdx_;
+  DLOG(INFO) << "add DownConnection " << conn->userName_ << " upsession idx " << (uint32_t) conn->upSessionIdx_;
   upSessionCount_[conn->userName_][conn->upSessionIdx_]++;
   downSessions_  [conn->sessionId_] = conn;
 }
